@@ -53,13 +53,16 @@ for data_file in use_data_filenames:
         lst2 = model_lsts[ind2]
         model_filename2 = model_lst_filenames[ind2]
 
+        # Interpolate models
         lst_spacing = np.abs(lst2 - lst1)
         lst_spacing1 = np.abs(lst1 - use_lst)
         lst_spacing2 = np.abs(lst2 - use_lst)
         model1_uv = pyuvdata.UVData()
         model1_uv.read(model_filename1)
+        model1_uv.select(lsts=[lst1])
         model1_uv.data_array *= lst_spacing1 / lst_spacing
         model2_uv = pyuvdata.UVData()
         model2_uv.read(model_filename2)
+        model2_uv.select(lsts=[lst2])
         model2_uv.data_array *= lst_spacing2 / lst_spacing
         model_uv = model1_uv.sum_vis(model2_uv, inplace=False)
