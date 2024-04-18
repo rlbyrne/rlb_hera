@@ -93,7 +93,7 @@ for data_file in data_filenames:
         if len(model_uv_list) > 1:
             for model_uv_use in model_uv_list[1:]:
                 combined_model_uv.fast_concat(model_uv_use, "blt", inplace=True)
-        data_file_name = data_file.removesuffix(".uvh5")
+        data_file_name = data_file.replace(".uvh5", "")
         combined_model_uv.write_uvfits(
             f"/safepool/rbyrne/hera_data/interpolated_models/{data_file_name}_model.uvfits"
         )
