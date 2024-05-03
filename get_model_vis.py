@@ -35,7 +35,7 @@ for data_file in data_filenames:
 
     if use_file:  # Keep only files where all LSTs are covered by the model
         model_uv_list = []
-        for use_lst in list(set(data_uv.lst_array)):
+        for time_ind, use_lst in enumerate(list(set(data_uv.lst_array))):
             lst_distance = np.abs(model_lsts - use_lst)
             ind1 = np.where(lst_distance == np.min(lst_distance))[0]
             ind2 = np.where(lst_distance == np.sort(lst_distance)[1])[0]
@@ -52,7 +52,6 @@ for data_file in data_filenames:
             model1_uv.read(f"{model_filepath}/{model_filename1}")
             model1_uv.select(lsts=[lst1])
             model1_uv.filename = [""]
-            model1_uv.data_array *= lst_spacing1 / lst_spacing
             model2_uv = pyuvdata.UVData()
             model2_uv.read(f"{model_filepath}/{model_filename2}")
             model2_uv.select(lsts=[lst2])
@@ -63,6 +62,8 @@ for data_file in data_filenames:
             model1_uv.phase_to_time(phase_center_time)
             model2_uv.phase_to_time(phase_center_time)
 
+            # Combine data
+            model1_uv.data_array *= lst_spacing1 / lst_spacing
             model2_uv.data_array *= lst_spacing2 / lst_spacing
             model_uv = model1_uv.sum_vis(
                 model2_uv,
@@ -86,6 +87,11 @@ for data_file in data_filenames:
             model_uv.data_array *= np.abs(model_uv_abs.data_array) / np.abs(
                 model_uv.data_array
             )
+
+            model_uv.time_array = np.full(
+                model_uv.Nblts, np.sort(list(set(data_uv.time_array)))[time_ind]
+            )
+            model_uv.lst_array = np.full(model_uv.Nblts, use_lst)
             model_uv_list.append(model_uv)
 
         # Save output
