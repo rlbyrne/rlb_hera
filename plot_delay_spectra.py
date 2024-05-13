@@ -5,7 +5,19 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-def plot_visibilities(uvdata, savepath, plot_horizon_lines=False, use_polarization=-5):
+def plot_visibilities(
+    uvdata,
+    savepath,
+    plot_horizon_lines=False,
+    use_polarization=-5,
+    xmin=None,
+    xmax=None,
+    ymin=None,
+    ymax=None,
+    nbins=50,
+    vmin=1e16,
+    vmax=1e22,
+):
 
     use_data = np.copy(uvdata.data_array)
     use_data[np.where(uvdata.flag_array)] = 0  # Zero out flagged data
@@ -20,9 +32,12 @@ def plot_visibilities(uvdata, savepath, plot_horizon_lines=False, use_polarizati
     fft_abs *= uvdata.channel_width
 
     # Average in baseline length bins
-    nbins = 50
     bl_lengths = np.sqrt(np.sum(uvdata.uvw_array**2.0, axis=1))
-    bl_bin_edges = np.linspace(np.min(bl_lengths), np.max(bl_lengths), num=nbins + 1)
+    if xmin is None:
+        xmin = np.min(bl_lengths)
+    if xmax is None:
+        xmax = np.max(bl_lengths)
+    bl_bin_edges = np.linspace(xmin, xmax, num=nbins + 1)
     binned_variance = np.full([nbins, uvdata.Nfreqs], np.nan, dtype="float")
     for bin_ind in range(nbins):
         bl_inds = np.where(
@@ -37,9 +52,11 @@ def plot_visibilities(uvdata, savepath, plot_horizon_lines=False, use_polarizati
     # Plot
     use_cmap = matplotlib.cm.get_cmap("inferno")
     use_cmap.set_bad(color="whitesmoke")
-    vmin = 1e16
-    vmax = 1e22
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
+    if ymin is None:
+        ymin = np.min(delay_array) * 1e6
+    if ymax is None:
+        ymax = np.max(delay_array) * 1e6
     plt.imshow(
         binned_variance.T,
         origin="lower",
@@ -47,10 +64,10 @@ def plot_visibilities(uvdata, savepath, plot_horizon_lines=False, use_polarizati
         cmap=use_cmap,
         norm=norm,
         extent=[
-            np.min(bl_bin_edges),
-            np.max(bl_bin_edges),
-            np.min(delay_array) * 1e6,
-            np.max(delay_array) * 1e6,
+            xmin,
+            xmax,
+            ymin,
+            ymax,
         ],
         aspect="auto",
     )
@@ -107,9 +124,13 @@ def run_plot_data():
         model = pyuvdata.UVData()
         model.read(f"{model_filepath}/{model_filenames[file_ind]}")
         model.inflate_by_redundancy(use_grid_alg=True)
+        bl_lengths = np.sqrt(np.sum(model.uvw_array**2.0, axis=1))
+        xmax = np.max(bl_lengths)
         plot_visibilities(
             model,
             f"{plot_save_path}/{datafile_names[file_ind]}_model.png",
+            xmin=0,
+            xmax=xmax,
         )
 
         # Plot data
@@ -119,6 +140,8 @@ def run_plot_data():
         plot_visibilities(
             data,
             f"{plot_save_path}/{datafile_names[file_ind]}_data.png",
+            xmin=0,
+            xmax=xmax,
         )
 
         # Calculate and plot difference
@@ -173,6 +196,8 @@ def run_plot_data():
         plot_visibilities(
             diff,
             f"{plot_save_path}/{datafile_names[file_ind]}_diff.png",
+            xmin=0,
+            xmax=xmax,
         )
 
 
