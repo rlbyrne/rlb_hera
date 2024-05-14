@@ -214,14 +214,13 @@ def calculate_avg_model_error():
     for obs in excluded_obs:
         datafile_names.remove(f"{obs}.sum.abs_calibrated.red_avg")
 
-    datafile_names = datafile_names[0:3]  # Added for debugging
-
     calibrated_data_path = "/safepool/rbyrne/hera_abscal"
     calibrated_data_filenames = [
         f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
     ]
 
     for file_ind in range(len(datafile_names)):
+        print(f"Processing file {file_ind+1} of {len(datafile_names)}.")
 
         # Plot model
         model = pyuvdata.UVData()
