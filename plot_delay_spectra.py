@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import pyuvdata
 import matplotlib
 import matplotlib.pyplot as plt
@@ -201,5 +202,136 @@ def run_plot_data():
         )
 
 
+def calculate_avg_model_error():
+
+    output_file = "/safepool/rbyrne/hera_abscal/mean_variance.npz"
+
+    model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
+    model_filenames = os.listdir(model_filepath)
+    datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
+
+    excluded_obs = ["zen.2459861.46302", "zen.2459861.47152"]
+    for obs in excluded_obs:
+        datafile_names.remove(f"{obs}.sum.abs_calibrated.red_avg")
+
+    datafile_names = datafile_names[0:3]  # Added for debugging
+
+    calibrated_data_path = "/safepool/rbyrne/hera_abscal"
+    calibrated_data_filenames = [
+        f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
+    ]
+
+    for file_ind in range(len(datafile_names)):
+
+        # Plot model
+        model = pyuvdata.UVData()
+        model.read(f"{model_filepath}/{model_filenames[file_ind]}")
+        model.inflate_by_redundancy(use_grid_alg=True)
+        bl_lengths = np.sqrt(np.sum(model.uvw_array**2.0, axis=1))
+        xmax = np.max(bl_lengths)
+
+        # Plot data
+        data = pyuvdata.UVData()
+        data.read(f"{calibrated_data_path}/{calibrated_data_filenames[file_ind]}")
+        data.inflate_by_redundancy(use_grid_alg=True)
+
+        # Calculate and plot difference
+        model_baselines = list(set(list(zip(model.ant_1_array, model.ant_2_array))))
+        data_baselines = list(set(list(zip(data.ant_1_array, data.ant_2_array))))
+        use_baselines = [
+            baseline
+            for baseline in model_baselines
+            if (baseline in data_baselines) or (baseline[::-1] in data_baselines)
+        ]
+        use_polarizations = [
+            pol for pol in model.polarization_array if pol in data.polarization_array
+        ]
+        data.select(bls=use_baselines, polarizations=use_polarizations)
+        model.select(bls=use_baselines, polarizations=use_polarizations)
+        # Align phasing
+        data.phase_to_time(np.mean(data.time_array))
+        model.phase_to_time(np.mean(data.time_array))
+        # Ensure ordering matches
+        data.reorder_blts()
+        model.reorder_blts()
+        data.reorder_pols(order="AIPS")
+        model.reorder_pols(order="AIPS")
+        data.reorder_freqs(channel_order="freq")
+        model.reorder_freqs(channel_order="freq")
+        data.filename = [""]
+        model.filename = [""]
+        diff = data.sum_vis(
+            model,
+            difference=True,
+            inplace=False,
+            override_params=[
+                "nsample_array",
+                "earth_omega",
+                "flag_array",
+                "filename",
+                "phase_center_catalog",
+                "timesys",
+                "uvw_array",
+                "phase_center_app_ra",
+                "phase_center_app_dec",
+                "telescope_location",
+                "vis_units",
+                "antenna_names",
+                "antenna_positions",
+                "instrument",
+                "x_orientation",
+                "antenna_numbers",
+            ],
+        )
+        diff.flag_array = data.flag_array
+        bl_lengths = np.sqrt(np.sum(diff.uvw_array**2.0, axis=1))
+
+        if file_ind == 0:
+            channel_width = diff.channel_width
+            frequencies = diff.freq_array.flatten()
+            delay_array = np.fft.fftshift(np.fft.fftfreq(diff.Nfreqs, d=channel_width))
+            nbins = 200
+            bl_bin_edges = np.linspace(0, np.max(bl_lengths), num=nbins + 1)
+            binned_variance = np.full([nbins, len(frequencies)], 0.0, dtype="float")
+            nsamples = np.full([nbins, len(frequencies)], 0.0, dtype="float")
+
+        use_data = np.copy(diff.data_array)
+        use_data[np.where(diff.flag_array)] = 0  # Zero out flagged data
+        use_data = use_data[
+            :,
+            :,
+            :,
+            np.where(diff.polarization_array == -5)[0],  # Use only XX visibilities
+        ]
+
+        # FFT across frequency
+        if diff.channel_width != channel_width:
+            print("ERROR: Channel width mismatch. Exiting.")
+            sys.exit(1)
+        if np.max(np.abs(diff.freq_array.flatten() - frequencies)) != 0.0:
+            print("ERROR: Frequency array mismatch. Exiting.")
+            sys.exit(1)
+        fft_abs = np.abs(np.fft.fftshift(np.fft.fft(use_data, axis=2), axes=2))
+        fft_abs *= channel_width
+
+        for bin_ind in range(nbins):
+            bl_inds = np.where(
+                (bl_lengths > bl_bin_edges[bin_ind])
+                & (bl_lengths <= bl_bin_edges[bin_ind + 1])
+            )[0]
+            if len(bl_inds) > 0:
+                binned_variance[bin_ind, :] += np.mean(
+                    fft_abs[bl_inds, 0, :, 0] ** 2.0, axis=0
+                )
+                nsamples[bin_ind, :] += len(bl_inds)
+
+    mean_variance = {}
+    mean_variance["variance"] = binned_variance / nsamples
+    mean_variance["nsamples"] = nsamples
+    mean_variance["frequencies"] = frequencies
+    mean_variance["bl_bin_edges"] = bl_bin_edges
+    np.savez(output_file, mean_variance)
+
+
 if __name__ == "__main__":
-    run_plot_data()
+    calculate_avg_model_error()
