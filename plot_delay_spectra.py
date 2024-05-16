@@ -214,6 +214,8 @@ def calculate_avg_model_error():
     for obs in excluded_obs:
         datafile_names.remove(f"{obs}.sum.abs_calibrated.red_avg")
 
+    datafile_names = datafile_names[0:3]
+
     calibrated_data_path = "/safepool/rbyrne/hera_abscal"
     calibrated_data_filenames = [
         f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
@@ -273,6 +275,7 @@ def calculate_avg_model_error():
                 "uvw_array",
                 "phase_center_app_ra",
                 "phase_center_app_dec",
+                "phase_center_frame_pa",
                 "telescope_location",
                 "vis_units",
                 "antenna_names",
@@ -280,6 +283,8 @@ def calculate_avg_model_error():
                 "instrument",
                 "x_orientation",
                 "antenna_numbers",
+                "lst_array",
+                "time_array",
             ],
         )
         diff.flag_array = data.flag_array
@@ -329,7 +334,7 @@ def calculate_avg_model_error():
     mean_variance["nsamples"] = nsamples
     mean_variance["frequencies"] = frequencies
     mean_variance["bl_bin_edges"] = bl_bin_edges
-    np.savez(output_file, mean_variance)
+    np.savez(output_file, **mean_variance)
 
 
 if __name__ == "__main__":
