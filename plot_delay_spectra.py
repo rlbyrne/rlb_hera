@@ -204,7 +204,8 @@ def run_plot_data():
 
 def calculate_avg_model_error():
 
-    output_file = "/safepool/rbyrne/hera_abscal/mean_variance.npz"
+    output_file = "/safepool/rbyrne/hera_abscal/mean_variance_xx.npz"
+    use_pol = -5
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     model_filenames = os.listdir(model_filepath)
@@ -227,14 +228,10 @@ def calculate_avg_model_error():
         model.read(f"{model_filepath}/{model_filenames[file_ind]}")
         model.inflate_by_redundancy(use_grid_alg=True)
         bl_lengths = np.sqrt(np.sum(model.uvw_array**2.0, axis=1))
-        xmax = np.max(bl_lengths)
 
-        # Plot data
         data = pyuvdata.UVData()
         data.read(f"{calibrated_data_path}/{calibrated_data_filenames[file_ind]}")
         data.inflate_by_redundancy(use_grid_alg=True)
-
-        # Calculate and plot difference
         model_baselines = list(set(list(zip(model.ant_1_array, model.ant_2_array))))
         data_baselines = list(set(list(zip(data.ant_1_array, data.ant_2_array))))
         use_baselines = [
@@ -242,11 +239,8 @@ def calculate_avg_model_error():
             for baseline in model_baselines
             if (baseline in data_baselines) or (baseline[::-1] in data_baselines)
         ]
-        use_polarizations = [
-            pol for pol in model.polarization_array if pol in data.polarization_array
-        ]
-        data.select(bls=use_baselines, polarizations=use_polarizations)
-        model.select(bls=use_baselines, polarizations=use_polarizations)
+        data.select(bls=use_baselines, polarizations=use_pol)
+        model.select(bls=use_baselines, polarizations=use_pol)
         # Align phasing
         data.phase_to_time(np.mean(data.time_array))
         model.phase_to_time(np.mean(data.time_array))
@@ -287,6 +281,11 @@ def calculate_avg_model_error():
         )
         diff.flag_array = data.flag_array
         bl_lengths = np.sqrt(np.sum(diff.uvw_array**2.0, axis=1))
+        use_data = np.copy(diff.data_array[:, 0, :, 0])
+        use_data[np.where(diff.flag_array[:, 0, :, 0])] = 0  # Zero out flagged data
+        baseline_all_flagged = np.min(
+            diff.flag_array, axis=(1, 2, 3)
+        )  # Note what baselines are fully flagged
 
         if file_ind == 0:
             channel_width = diff.channel_width
@@ -297,15 +296,6 @@ def calculate_avg_model_error():
             binned_variance = np.full([nbins, len(frequencies)], 0.0, dtype="float")
             nsamples = np.full([nbins, len(frequencies)], 0.0, dtype="float")
 
-        use_data = np.copy(diff.data_array)
-        use_data[np.where(diff.flag_array)] = 0  # Zero out flagged data
-        use_data = use_data[
-            :,
-            :,
-            :,
-            np.where(diff.polarization_array == -5)[0],  # Use only XX visibilities
-        ]
-
         # FFT across frequency
         if diff.channel_width != channel_width:
             print("ERROR: Channel width mismatch. Exiting.")
@@ -313,24 +303,25 @@ def calculate_avg_model_error():
         if np.max(np.abs(diff.freq_array.flatten() - frequencies)) != 0.0:
             print("ERROR: Frequency array mismatch. Exiting.")
             sys.exit(1)
-        fft_abs = np.abs(np.fft.fftshift(np.fft.fft(use_data, axis=2), axes=2))
+        fft_abs = np.abs(np.fft.fftshift(np.fft.fft(use_data, axis=1), axes=1))
         fft_abs *= channel_width
 
         for bin_ind in range(nbins):
             bl_inds = np.where(
                 (bl_lengths > bl_bin_edges[bin_ind])
                 & (bl_lengths <= bl_bin_edges[bin_ind + 1])
+                & (~baseline_all_flagged)
             )[0]
             if len(bl_inds) > 0:
                 binned_variance[bin_ind, :] += np.mean(
-                    fft_abs[bl_inds, 0, :, 0] ** 2.0, axis=0
+                    fft_abs[bl_inds, :] ** 2.0, axis=0
                 )
                 nsamples[bin_ind, :] += len(bl_inds)
 
     mean_variance = {}
     mean_variance["variance"] = binned_variance / nsamples
     mean_variance["nsamples"] = nsamples
-    mean_variance["frequencies"] = frequencies
+    mean_variance["delay_array"] = delay_array
     mean_variance["bl_bin_edges"] = bl_bin_edges
     np.savez(output_file, **mean_variance)
 
