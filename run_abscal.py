@@ -210,8 +210,8 @@ def run_abscal_May24():
         calibration_wrappers.apply_abscal(
             data, abscal_params, data.polarization_array, inplace=True
         )
-        data.write_uvfits(f"{output_path}/{datafile_name}_dw_abscal_May24.uvfits")
-        with open(f"{output_path}/{datafile_name}_dw_abscal_params_May24.npy", "wb") as f:
+        data.write_uvfits(f"{output_path}/{datafile_name}_abscal_May24.uvfits")
+        with open(f"{output_path}/{datafile_name}_abscal_params_May24.npy", "wb") as f:
             np.save(f, abscal_params)
 
 
