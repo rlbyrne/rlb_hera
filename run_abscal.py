@@ -223,8 +223,6 @@ def run_abscal_Jun15():
     model_filenames = os.listdir(model_filepath)
     datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
 
-    datafile_names = datafile_names[:1]
-
     for file_ind, datafile_name in enumerate(datafile_names):
 
         print(f"Processing file {file_ind+1} of {len(datafile_names)}")
