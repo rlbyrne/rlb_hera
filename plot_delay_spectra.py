@@ -112,12 +112,12 @@ def run_plot_data():
     model_filenames = os.listdir(model_filepath)
     datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
 
-    calibrated_data_path = "/safepool/rbyrne/hera_abscal"
+    calibrated_data_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     calibrated_data_filenames = [
         f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
     ]
 
-    plot_save_path = "/safepool/rbyrne/hera_abscal/delay_spectrum_plots"
+    plot_save_path = "/safepool/rbyrne/hera_abscal_Jun2024/delay_spectrum_plots"
 
     for file_ind in range(len(datafile_names)):
 
@@ -204,7 +204,7 @@ def run_plot_data():
 
 def calculate_avg_model_error():
 
-    output_file = "/safepool/rbyrne/hera_abscal/mean_variance_xx.npz"
+    output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_xx.npz"
     use_pol = -5
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
@@ -215,7 +215,7 @@ def calculate_avg_model_error():
     for obs in excluded_obs:
         datafile_names.remove(f"{obs}.sum.abs_calibrated.red_avg")
 
-    calibrated_data_path = "/safepool/rbyrne/hera_abscal"
+    calibrated_data_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     calibrated_data_filenames = [
         f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
     ]
