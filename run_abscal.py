@@ -260,7 +260,7 @@ def run_abscal_Jun15():
 
         # null = data.sum_vis(model, inplace=False, override_params=["nsample_array", "earth_omega", "flag_array", "filename", "phase_center_catalog", "timesys"])  # Verify that metadata match
 
-        abscal_params = calibration_wrappers.dw_absolute_calibration(
+        abscal_params = calibration_wrappers.absolute_calibration(
             data,
             model,
             log_file_path=f"{output_path}/calibration_logs/{datafile_name}_abscal_May24.txt",
@@ -334,7 +334,7 @@ def run_dwabscal_Jun18():
 
         # null = data.sum_vis(model, inplace=False, override_params=["nsample_array", "earth_omega", "flag_array", "filename", "phase_center_catalog", "timesys"])  # Verify that metadata match
 
-        abscal_params = calibration_wrappers.absolute_calibration(
+        abscal_params = calibration_wrappers.dw_absolute_calibration(
             data,
             model,
             delay_spectrum_variance,
