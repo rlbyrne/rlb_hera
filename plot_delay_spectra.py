@@ -204,7 +204,9 @@ def run_plot_data():
 
 def calculate_avg_model_error():
 
-    output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_xx.npz"
+    output_file = (
+        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins50_xx.npz"
+    )
     use_pol = -5
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
@@ -291,7 +293,8 @@ def calculate_avg_model_error():
             channel_width = diff.channel_width
             frequencies = diff.freq_array.flatten()
             delay_array = np.fft.fftshift(np.fft.fftfreq(diff.Nfreqs, d=channel_width))
-            nbins = 200
+            # nbins = 200
+            nbins = 50
             bl_bin_edges = np.linspace(0, np.max(bl_lengths), num=nbins + 1)
             binned_variance = np.full([nbins, len(frequencies)], 0.0, dtype="float")
             nsamples = np.full([nbins, len(frequencies)], 0.0, dtype="float")
