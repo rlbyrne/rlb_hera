@@ -204,9 +204,7 @@ def run_plot_data():
 
 def calculate_avg_model_error():
 
-    output_file = (
-        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins50_xx.npz"
-    )
+    output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_dwabscal_normalized_nbins50_xx.npz"
     use_pol = -5
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
@@ -219,7 +217,8 @@ def calculate_avg_model_error():
 
     calibrated_data_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     calibrated_data_filenames = [
-        f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
+        f"{datafile_name}_dwabscal_normalized.uvfits"
+        for datafile_name in datafile_names
     ]
 
     for file_ind in range(len(datafile_names)):
