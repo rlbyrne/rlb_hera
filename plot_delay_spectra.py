@@ -205,11 +205,15 @@ def run_plot_data():
 def calculate_avg_model_error():
 
     # output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_dwabscal_normalized_nbins50_xx.npz"
-    output_file = (
-        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins50_xx.npz"
-    )
     use_pol = -5
     nbins = 200
+
+    if use_pol == -5:
+        pol_name = "xx"
+    elif use_pol == -6:
+        pol_name = "yy"
+    output_file = f"/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins{nbins}_{pol_name}.npz"
+
     # nbins = 50
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
