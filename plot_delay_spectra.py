@@ -204,8 +204,13 @@ def run_plot_data():
 
 def calculate_avg_model_error():
 
-    output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_dwabscal_normalized_nbins50_xx.npz"
+    # output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_dwabscal_normalized_nbins50_xx.npz"
+    output_file = (
+        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins50_xx.npz"
+    )
     use_pol = -5
+    nbins = 200
+    # nbins = 50
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     model_filenames = os.listdir(model_filepath)
@@ -292,8 +297,6 @@ def calculate_avg_model_error():
             channel_width = diff.channel_width
             frequencies = diff.freq_array.flatten()
             delay_array = np.fft.fftshift(np.fft.fftfreq(diff.Nfreqs, d=channel_width))
-            # nbins = 200
-            nbins = 50
             bl_bin_edges = np.linspace(0, np.max(bl_lengths), num=nbins + 1)
             binned_variance = np.full([nbins, len(frequencies)], 0.0, dtype="float")
             nsamples = np.full([nbins, len(frequencies)], 0.0, dtype="float")
@@ -315,12 +318,13 @@ def calculate_avg_model_error():
                 & (~baseline_all_flagged)
             )[0]
             if len(bl_inds) > 0:
-                binned_variance[bin_ind, :] += np.mean(
+                binned_variance[bin_ind, :] += np.sum(
                     fft_abs[bl_inds, :] ** 2.0, axis=0
                 )
                 nsamples[bin_ind, :] += len(bl_inds)
 
     mean_variance = {}
+    print(nsamples)
     mean_variance["variance"] = binned_variance / nsamples
     mean_variance["nsamples"] = nsamples
     mean_variance["delay_array"] = delay_array
