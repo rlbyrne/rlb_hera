@@ -278,7 +278,7 @@ def run_abscal_Jun15():
             np.save(f, abscal_params)
 
 
-def run_dwabscal_Jun18():
+def run_dwabscal_Jun28():
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
@@ -286,7 +286,9 @@ def run_dwabscal_Jun18():
     model_filenames = os.listdir(model_filepath)
     datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
 
-    avg_spectra = np.load("/safepool/rbyrne/hera_abscal/mean_variance.npz")
+    avg_spectra = np.load(
+        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins200_xx.npz"
+    )
     delay_spectrum_variance = avg_spectra["variance"]
     bl_length_bin_edges = avg_spectra["bl_bin_edges"]
     frequencies = avg_spectra["frequencies"]
@@ -390,4 +392,4 @@ def apply_abscal_solutions_fixed_normalization():
 
 
 if __name__ == "__main__":
-    apply_abscal_solutions_fixed_normalization()
+    run_dwabscal_Jun28()
