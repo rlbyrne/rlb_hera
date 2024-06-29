@@ -291,13 +291,7 @@ def run_dwabscal_Jun28():
     )
     delay_spectrum_variance = avg_spectra["variance"]
     bl_length_bin_edges = avg_spectra["bl_bin_edges"]
-    frequencies = avg_spectra["frequencies"]
-    delay_axis = np.fft.fftshift(
-        np.fft.fftfreq(
-            len(frequencies),
-            d=(np.max(frequencies) - np.min(frequencies)) / (len(frequencies) - 1),
-        )
-    )
+    delay_axis = avg_spectra["delay_array"]
 
     for file_ind, datafile_name in enumerate(datafile_names):
 
