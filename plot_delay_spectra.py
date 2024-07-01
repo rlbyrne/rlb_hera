@@ -6,19 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-def plot_visibilities(
-    uvdata,
-    savepath,
-    plot_horizon_lines=False,
-    use_polarization=-5,
-    xmin=None,
-    xmax=None,
-    ymin=None,
-    ymax=None,
-    nbins=50,
-    vmin=1e16,
-    vmax=1e22,
-):
+def calculate_delay_spectra(uvdata, bl_bin_edges, use_polarization=-5):
 
     use_data = np.copy(uvdata.data_array)
     use_data[np.where(uvdata.flag_array)] = 0  # Zero out flagged data
@@ -34,13 +22,10 @@ def plot_visibilities(
 
     # Average in baseline length bins
     bl_lengths = np.sqrt(np.sum(uvdata.uvw_array**2.0, axis=1))
-    if xmin is None:
-        xmin = np.min(bl_lengths)
-    if xmax is None:
-        xmax = np.max(bl_lengths)
-    bl_bin_edges = np.linspace(xmin, xmax, num=nbins + 1)
-    binned_variance = np.full([nbins, uvdata.Nfreqs], np.nan, dtype="float")
-    for bin_ind in range(nbins):
+    binned_variance = np.full(
+        [len(bl_bin_edges) - 1, uvdata.Nfreqs], np.nan, dtype="float"
+    )
+    for bin_ind in range(len(bl_bin_edges) - 1):
         bl_inds = np.where(
             (bl_lengths > bl_bin_edges[bin_ind])
             & (bl_lengths <= bl_bin_edges[bin_ind + 1])
@@ -49,6 +34,34 @@ def plot_visibilities(
             binned_variance[bin_ind, :] = np.mean(
                 fft_abs[bl_inds, 0, :, 0] ** 2.0, axis=0
             )
+
+    return binned_variance
+
+
+def plot_visibilities(
+    uvdata,
+    savepath=None,
+    plot_horizon_lines=False,
+    use_polarization=-5,
+    xmin=None,
+    xmax=None,
+    ymin=None,
+    ymax=None,
+    nbins=50,
+    vmin=1e16,
+    vmax=1e22,
+):
+
+    bl_lengths = np.sqrt(np.sum(uvdata.uvw_array**2.0, axis=1))
+    delay_array = np.fft.fftfreq(uvdata.Nfreqs, d=uvdata.channel_width)
+    if xmin is None:
+        xmin = np.min(bl_lengths)
+    if xmax is None:
+        xmax = np.max(bl_lengths)
+    bl_bin_edges = np.linspace(xmin, xmax, num=nbins + 1)
+    binned_variance = calculate_delay_spectra(
+        uvdata, bl_bin_edges, use_polarization=use_polarization
+    )
 
     # Plot
     use_cmap = matplotlib.cm.get_cmap("inferno")
@@ -102,22 +115,124 @@ def plot_visibilities(
     plt.xlabel("Baseline Length (m)")
     plt.ylim([np.min(delay_array) * 1e6, np.max(delay_array) * 1e6])
     plt.ylabel("Delay ($\mu$s)")
-    plt.savefig(savepath, dpi=300)
-    plt.close()
+    if savepath is None:
+        plt.show()
+    else:
+        plt.savefig(savepath, dpi=300)
+        plt.close()
 
 
-def run_plot_data():
+def plot_difference(
+    uvdata1,
+    uvdata2,
+    savepath=None,
+    plot_horizon_lines=False,
+    use_polarization=-5,
+    xmin=None,
+    xmax=None,
+    ymin=None,
+    ymax=None,
+    nbins=50,
+    extent=1e22,
+    ratio=False,
+):
 
-    model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
+    bl_lengths = np.sqrt(np.sum(uvdata1.uvw_array**2.0, axis=1))
+    delay_array = np.fft.fftfreq(uvdata1.Nfreqs, d=uvdata1.channel_width)
+    if xmin is None:
+        xmin = np.min(bl_lengths)
+    if xmax is None:
+        xmax = np.max(bl_lengths)
+    bl_bin_edges = np.linspace(xmin, xmax, num=nbins + 1)
+    binned_variance1 = calculate_delay_spectra(
+        uvdata1, bl_bin_edges, use_polarization=use_polarization
+    )
+    binned_variance2 = calculate_delay_spectra(
+        uvdata2, bl_bin_edges, use_polarization=use_polarization
+    )
+
+    # Plot
+    use_cmap = matplotlib.cm.get_cmap("seismic")
+    use_cmap.set_bad(color="whitesmoke")
+
+    if ratio:
+        norm = matplotlib.colors.Normalize(vmin=-1, vmax=1)
+    else:
+        norm = matplotlib.colors.SymLogNorm(extent / 1e10, vmax=extent)
+
+    if ymin is None:
+        ymin = np.min(delay_array) * 1e6
+    if ymax is None:
+        ymax = np.max(delay_array) * 1e6
+    plot_values = binned_variance1.T - binned_variance2.T
+    if ratio:
+        plot_values /= binned_variance2.T
+    plt.imshow(
+        plot_values,
+        origin="lower",
+        interpolation="none",
+        cmap=use_cmap,
+        norm=norm,
+        extent=[
+            xmin,
+            xmax,
+            ymin,
+            ymax,
+        ],
+        aspect="auto",
+    )
+
+    if plot_horizon_lines:
+        plt.plot(
+            [np.min(bl_bin_edges), np.max(bl_bin_edges)],
+            [
+                np.min(bl_bin_edges) / 3e8 * 1e6,
+                np.max(bl_bin_edges) / 3e8 * 1e6,
+            ],
+            "--",
+            color="white",
+            linewidth=1.0,
+        )
+        plt.plot(
+            [np.min(bl_bin_edges), np.max(bl_bin_edges)],
+            [
+                -np.min(bl_bin_edges) / 3e8 * 1e6,
+                -np.max(bl_bin_edges) / 3e8 * 1e6,
+            ],
+            "--",
+            color="white",
+            linewidth=1.0,
+        )
+
+    cbar = plt.colorbar(extend="both")
+    cbar.ax.set_ylabel(
+        "Visibility Variance (Jy$^{2}$/s$^2$)", rotation=270, labelpad=15
+    )
+    plt.xlabel("Baseline Length (m)")
+    plt.ylim([np.min(delay_array) * 1e6, np.max(delay_array) * 1e6])
+    plt.ylabel("Delay ($\mu$s)")
+    if savepath is None:
+        plt.show()
+    else:
+        plt.savefig(savepath, dpi=300)
+        plt.close()
+
+
+def run_plot_data(
+    model_filepath="/safepool/rbyrne/hera_data/interpolated_models",
+    calibrated_data_path="/safepool/rbyrne/hera_abscal_Jun2024",
+    model_suffix="_model.uvfits",
+    calibrated_data_suffix="_abscal.uvfits",
+    plot_save_path="/safepool/rbyrne/hera_abscal_Jun2024/delay_spectrum_plots",
+):
+
     model_filenames = os.listdir(model_filepath)
-    datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
+    datafile_names = [name.removesuffix(model_suffix) for name in model_filenames]
 
     calibrated_data_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     calibrated_data_filenames = [
-        f"{datafile_name}_abscal.uvfits" for datafile_name in datafile_names
+        f"{datafile_name}{calibrated_data_suffix}" for datafile_name in datafile_names
     ]
-
-    plot_save_path = "/safepool/rbyrne/hera_abscal_Jun2024/delay_spectrum_plots"
 
     for file_ind in range(len(datafile_names)):
 
@@ -129,7 +244,7 @@ def run_plot_data():
         xmax = np.max(bl_lengths)
         plot_visibilities(
             model,
-            f"{plot_save_path}/{datafile_names[file_ind]}_model.png",
+            savepath=f"{plot_save_path}/{datafile_names[file_ind]}_model.png",
             xmin=0,
             xmax=xmax,
         )
@@ -202,32 +317,26 @@ def run_plot_data():
         )
 
 
-def calculate_avg_model_error():
-
-    # output_file = "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_dwabscal_normalized_nbins50_xx.npz"
-    use_pol = -5
-    nbins = 200
-
-    if use_pol == -5:
-        pol_name = "xx"
-    elif use_pol == -6:
-        pol_name = "yy"
-    output_file = f"/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins{nbins}_{pol_name}.npz"
-
-    # nbins = 50
+def calculate_avg_model_error(
+    model_filepath="/safepool/rbyrne/hera_data/interpolated_models",
+    calibrated_data_path="/safepool/rbyrne/hera_abscal_Jun2024",
+    model_suffix="_model.uvfits",
+    calibrated_data_suffix="_dwabscal_normalized.uvfits",
+    output_file="/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins200_xx.npz",
+    excluded_obs=["zen.2459861.46302", "zen.2459861.47152"],
+    use_pol=-5,
+    nbins=200,
+):
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     model_filenames = os.listdir(model_filepath)
-    datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
+    datafile_names = [name.removesuffix(model_suffix) for name in model_filenames]
 
-    excluded_obs = ["zen.2459861.46302", "zen.2459861.47152"]
     for obs in excluded_obs:
         datafile_names.remove(f"{obs}.sum.abs_calibrated.red_avg")
 
-    calibrated_data_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     calibrated_data_filenames = [
-        f"{datafile_name}_dwabscal_normalized.uvfits"
-        for datafile_name in datafile_names
+        f"{datafile_name}{calibrated_data_suffix}" for datafile_name in datafile_names
     ]
 
     for file_ind in range(len(datafile_names)):
@@ -328,7 +437,6 @@ def calculate_avg_model_error():
                 nsamples[bin_ind, :] += len(bl_inds)
 
     mean_variance = {}
-    print(nsamples)
     mean_variance["variance"] = binned_variance / nsamples
     mean_variance["nsamples"] = nsamples
     mean_variance["delay_array"] = delay_array

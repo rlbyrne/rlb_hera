@@ -285,6 +285,8 @@ def run_dwabscal_Jun28():
     output_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     model_filenames = os.listdir(model_filepath)
     datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
+    datafile_names = datafile_names[:1]
+    print(datafile_names)
 
     avg_spectra = np.load(
         "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins200_xx.npz"
@@ -315,9 +317,10 @@ def run_dwabscal_Jun28():
             for baseline in model_baselines
             if (baseline in data_baselines) or (baseline[::-1] in data_baselines)
         ]
-        use_polarizations = [
-            pol for pol in model.polarization_array if pol in data.polarization_array
-        ]
+        # use_polarizations = [
+        #    pol for pol in model.polarization_array if pol in data.polarization_array
+        # ]
+        use_polarizations = -5
         data.select(bls=use_baselines, polarizations=use_polarizations)
         model.select(bls=use_baselines, polarizations=use_polarizations)
 
@@ -336,7 +339,7 @@ def run_dwabscal_Jun28():
             delay_spectrum_variance,
             bl_length_bin_edges,
             delay_axis,
-            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Jun18.txt",
+            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Jul1.txt",
             verbose=True,
         )
 
@@ -360,6 +363,7 @@ def apply_abscal_solutions_fixed_normalization():
     filenames = os.listdir(abscal_solution_filepath)
     filenames = [name for name in filenames if name.endswith("_dwabscal_params.npy")]
     filenames = [name.removesuffix("_dwabscal_params.npy") for name in filenames]
+    filenames = filenames[1:2]
 
     for file_ind, use_filename in enumerate(filenames):
         dwabscal_params = np.load(
@@ -374,16 +378,25 @@ def apply_abscal_solutions_fixed_normalization():
         use_abscal_params = np.copy(dwabscal_params)
         use_abscal_params[0, :, use_pol_ind] *= mean_amp_abscal / mean_amp_dwabscal
 
+        print(np.sum(abscal_params[0, :, use_pol_ind]))
+        print(np.sum(use_abscal_params[0, :, use_pol_ind]))
+        print(abscal_params[0, :, use_pol_ind])
+        print(use_abscal_params[0, :, use_pol_ind])
         data = pyuvdata.UVData()
         data.read(f"{data_filepath}/{use_filename}.uvh5")
         data.phase_to_time(np.mean(data.time_array))
+        data_debug = calibration_wrappers.apply_abscal(
+            data, abscal_params, data.polarization_array, inplace=False
+        )
+        print(np.sum(np.abs(data_debug.data_array[200, 0, :, 0]) ** 2.0))
         calibration_wrappers.apply_abscal(
             data, use_abscal_params, data.polarization_array, inplace=True
         )
-        data.write_uvfits(
-            f"{abscal_solution_filepath}/{use_filename}_dwabscal_normalized.uvfits"
-        )
+        print(np.sum(np.abs(data.data_array[200, 0, :, 0]) ** 2.0))
+        # data.write_uvfits(
+        #    f"{abscal_solution_filepath}/{use_filename}_dwabscal_normalized.uvfits"
+        # )
 
 
 if __name__ == "__main__":
-    apply_abscal_solutions_fixed_normalization()
+    run_dwabscal_Jun28()
