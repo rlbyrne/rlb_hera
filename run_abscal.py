@@ -386,4 +386,4 @@ def apply_abscal_solutions_fixed_normalization():
 
 
 if __name__ == "__main__":
-    run_dwabscal_Jun28()
+    apply_abscal_solutions_fixed_normalization()
