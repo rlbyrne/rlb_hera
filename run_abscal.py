@@ -278,7 +278,7 @@ def run_abscal_Jun15():
             np.save(f, abscal_params)
 
 
-def run_dwabscal_Jun28():
+def run_dwabscal_Jul2():
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
@@ -339,12 +339,13 @@ def run_dwabscal_Jun28():
             delay_spectrum_variance,
             bl_length_bin_edges,
             delay_axis,
-            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Jul1.txt",
+            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Jul2.txt",
             verbose=True,
         )
 
         data = pyuvdata.UVData()
         data.read(data_path)
+        data.select(polarizations=use_polarizations)
         data.phase_to_time(np.mean(data.time_array))
         calibration_wrappers.apply_abscal(
             data, abscal_params, data.polarization_array, inplace=True
@@ -399,4 +400,4 @@ def apply_abscal_solutions_fixed_normalization():
 
 
 if __name__ == "__main__":
-    run_dwabscal_Jun28()
+    run_dwabscal_Jul2()
