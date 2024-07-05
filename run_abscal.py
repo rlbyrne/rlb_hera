@@ -457,17 +457,25 @@ def debug_dwabscal_Jul5():
         delay_axis,
     )
 
-    abscal_parameters = calibration_optimization.run_abscal_optimization(
-        caldata_obj,
-        1e-6,
-        100,
-        verbose=True,
-    )
-    with open(
-        f"/safepool/rbyrne/debug_dwabscal_Jul2024/abscal_params.npy",
-        "wb",
-    ) as f:
-        np.save(f, abscal_parameters)
+    if False:
+        caldata_list = caldata_obj.expand_in_frequency()
+        abscal_parameters = np.copy(caldata_obj.abscal_params)
+        for freq_ind in range(caldata_obj.Nfreqs):
+            calibration_optimization.run_abscal_optimization_single_freq(
+                caldata_list[freq_ind],
+                1e-6,
+                100,
+                verbose=True,
+            )
+            abscal_parameters[:, [freq_ind], :] = caldata_list[freq_ind].abscal_params[
+                :, [0], :
+            ]
+
+        with open(
+            f"/safepool/rbyrne/debug_dwabscal_Jul2024/abscal_params.npy",
+            "wb",
+        ) as f:
+            np.save(f, abscal_parameters)
 
     dwabscal_parameters = calibration_optimization.run_dw_abscal_optimization(
         caldata_obj,
@@ -494,7 +502,7 @@ def debug_dwabscal_Jul5():
         f"/safepool/rbyrne/debug_dwabscal_Jul2024/dwabscal_params_diagonal.npy",
         "wb",
     ) as f:
-        np.save(f, dwabscal_parameters)
+        np.save(f, dwabscal_parameters_diagonal)
 
 
 if __name__ == "__main__":
