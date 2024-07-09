@@ -215,7 +215,7 @@ def run_abscal_May24():
             np.save(f, abscal_params)
 
 
-def run_abscal_Jul3():
+def run_abscal_Jul8():
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
@@ -265,7 +265,7 @@ def run_abscal_Jul3():
         abscal_params = calibration_wrappers.absolute_calibration(
             data,
             model,
-            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_abscal_Jul3.txt",
+            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_abscal_Jul8.txt",
             verbose=True,
         )
 
@@ -280,11 +280,10 @@ def run_abscal_Jul3():
             np.save(f, abscal_params)
 
 
-def run_dwabscal_Jul2():
+def run_dwabscal_Jul8():
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
-    # data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
-    data_filepath = "/safepool/rbyrne/hera_abscal_Jun2024"
+    data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
     output_path = "/safepool/rbyrne/hera_abscal_Jun2024"
     model_filenames = os.listdir(model_filepath)
     datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
@@ -302,8 +301,7 @@ def run_dwabscal_Jul2():
 
         print(f"Processing file {file_ind+1} of {len(datafile_names)}")
 
-        # data_path = f"{data_filepath}/{datafile_name}.uvh5"
-        data_path = f"{data_filepath}/{datafile_name}_abscal.uvfits"
+        data_path = f"{data_filepath}/{datafile_name}.uvh5"
         model_path = f"{model_filepath}/{datafile_name}_model.uvfits"
         data = pyuvdata.UVData()
         data.read(data_path)
@@ -343,7 +341,7 @@ def run_dwabscal_Jul2():
             delay_spectrum_variance,
             bl_length_bin_edges,
             delay_axis,
-            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_recalibrated_Jul2.txt",
+            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Jul8.txt",
             verbose=True,
         )
 
@@ -354,10 +352,8 @@ def run_dwabscal_Jul2():
         calibration_wrappers.apply_abscal(
             data, abscal_params, data.polarization_array, inplace=True
         )
-        data.write_uvfits(f"{output_path}/{datafile_name}_dwabscal_recalibrated.uvfits")
-        with open(
-            f"{output_path}/{datafile_name}_dwabscal_recalibrated_params.npy", "wb"
-        ) as f:
+        data.write_uvfits(f"{output_path}/{datafile_name}_dwabscal.uvfits")
+        with open(f"{output_path}/{datafile_name}_dwabscal_params.npy", "wb") as f:
             np.save(f, abscal_params)
 
 
@@ -506,4 +502,5 @@ def debug_dwabscal_Jul5():
 
 
 if __name__ == "__main__":
-    debug_dwabscal_Jul5()
+    run_abscal_Jul8()
+    run_dwabscal_Jul8()
