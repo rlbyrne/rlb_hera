@@ -280,7 +280,7 @@ def run_abscal_Jul8():
             np.save(f, abscal_params)
 
 
-def run_dwabscal_Jul8():
+def run_dwabscal_Jul12():
 
     model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
@@ -341,7 +341,7 @@ def run_dwabscal_Jul8():
             delay_spectrum_variance,
             bl_length_bin_edges,
             delay_axis,
-            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Jul8.txt",
+            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_Powell_Jul12.txt",
             verbose=True,
         )
 
@@ -352,8 +352,10 @@ def run_dwabscal_Jul8():
         calibration_wrappers.apply_abscal(
             data, abscal_params, data.polarization_array, inplace=True
         )
-        data.write_uvfits(f"{output_path}/{datafile_name}_dwabscal.uvfits")
-        with open(f"{output_path}/{datafile_name}_dwabscal_params.npy", "wb") as f:
+        data.write_uvfits(f"{output_path}/{datafile_name}_dwabscal_powell.uvfits")
+        with open(
+            f"{output_path}/{datafile_name}_dwabscal_powell_params.npy", "wb"
+        ) as f:
             np.save(f, abscal_params)
 
 
@@ -501,6 +503,86 @@ def debug_dwabscal_Jul5():
         np.save(f, dwabscal_parameters_diagonal)
 
 
+def run_dwabscal_Jul17():
+
+    model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
+    data_filepath = "/safepool/rbyrne/hera_data/H6C-data/2459861"
+    output_path = "/safepool/rbyrne/hera_abscal_Jun2024"
+    model_filenames = os.listdir(model_filepath)
+    datafile_names = [name.removesuffix("_model.uvfits") for name in model_filenames]
+    datafile_names = datafile_names[:1]
+    print(datafile_names)
+
+    avg_spectra = np.load(
+        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins200_xx.npz"
+    )
+    delay_spectrum_variance = avg_spectra["variance"]
+    bl_length_bin_edges = avg_spectra["bl_bin_edges"]
+    delay_axis = avg_spectra["delay_array"]
+
+    for file_ind, datafile_name in enumerate(datafile_names):
+
+        print(f"Processing file {file_ind+1} of {len(datafile_names)}")
+
+        data_path = f"{data_filepath}/{datafile_name}.uvh5"
+        model_path = f"{model_filepath}/{datafile_name}_model.uvfits"
+        data = pyuvdata.UVData()
+        data.read(data_path)
+        model = pyuvdata.UVData()
+        model.read(model_path)
+
+        data.inflate_by_redundancy(use_grid_alg=True)
+        model.inflate_by_redundancy(use_grid_alg=True)
+
+        # Model does not include all baselines
+        model_baselines = list(set(list(zip(model.ant_1_array, model.ant_2_array))))
+        data_baselines = list(set(list(zip(data.ant_1_array, data.ant_2_array))))
+        use_baselines = [
+            baseline
+            for baseline in model_baselines
+            if (baseline in data_baselines) or (baseline[::-1] in data_baselines)
+        ]
+        # use_polarizations = [
+        #    pol for pol in model.polarization_array if pol in data.polarization_array
+        # ]
+        use_polarizations = -5
+        data.select(bls=use_baselines, polarizations=use_polarizations)
+        model.select(bls=use_baselines, polarizations=use_polarizations)
+
+        # Align phasing
+        data.phase_to_time(np.mean(data.time_array))
+        model.phase_to_time(np.mean(data.time_array))
+
+        data.compress_by_redundancy()
+        model.compress_by_redundancy()
+
+        # null = data.sum_vis(model, inplace=False, override_params=["nsample_array", "earth_omega", "flag_array", "filename", "phase_center_catalog", "timesys"])  # Verify that metadata match
+
+        abscal_params = calibration_wrappers.dw_absolute_calibration(
+            data,
+            model,
+            delay_spectrum_variance,
+            bl_length_bin_edges,
+            delay_axis,
+            log_file_path=f"{output_path}/calibration_logs/{datafile_name}_dwabscal_maxiter2_Jul17.txt",
+            verbose=True,
+            xtol=1e-4,
+            maxiter=2,
+        )
+
+        data = pyuvdata.UVData()
+        data.read(data_path)
+        data.select(polarizations=use_polarizations)
+        data.phase_to_time(np.mean(data.time_array))
+        calibration_wrappers.apply_abscal(
+            data, abscal_params, data.polarization_array, inplace=True
+        )
+        data.write_uvfits(f"{output_path}/{datafile_name}_dwabscal_maxiter2.uvfits")
+        with open(
+            f"{output_path}/{datafile_name}_dwabscal_maxiter2_params.npy", "wb"
+        ) as f:
+            np.save(f, abscal_params)
+
+
 if __name__ == "__main__":
-    run_abscal_Jul8()
-    run_dwabscal_Jul8()
+    run_dwabscal_Jul17()
