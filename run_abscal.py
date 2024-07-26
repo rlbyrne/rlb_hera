@@ -584,7 +584,7 @@ def run_dwabscal_Jul17():
             np.save(f, abscal_params)
 
 
-def compare_dwabscal_Jul24():
+def run_abscal_Jul24():
 
     output_path = "/safepool/rbyrne/hera_abscal_Jul2024"
 
@@ -630,26 +630,10 @@ def compare_dwabscal_Jul24():
         model,
         log_file_path=f"{output_path}/abscal_log.txt",
         verbose=True,
-        xtol=1e-4,
+        xtol=1e-7,
         maxiter=50,
     )
     with open(f"{output_path}/abscal_params.npy", "wb") as f:
-        np.save(f, abscal_params)
-
-    # Run DWAbscal
-    dwabscal_params = calibration_wrappers.dw_absolute_calibration(
-        data,
-        model,
-        delay_spectrum_variance,
-        bl_length_bin_edges,
-        delay_axis,
-        initial_abscal_params=abscal_params,
-        log_file_path=f"{output_path}/dwabscal_log.txt",
-        verbose=True,
-        xtol=1e-4,
-        maxiter=50,
-    )
-    with open(f"{output_path}/dwabscal_params.npy", "wb") as f:
         np.save(f, abscal_params)
 
     data = pyuvdata.UVData()
@@ -660,11 +644,139 @@ def compare_dwabscal_Jul24():
         data, abscal_params, data.polarization_array, inplace=False
     )
     abscal_data.write_uvfits(f"{output_path}/abscal_data.uvfits")
+
+
+def run_dwabscal_Jul24():
+
+    output_path = "/safepool/rbyrne/hera_abscal_Jul2024"
+
+    avg_spectra = np.load(
+        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins200_xx.npz"
+    )
+    delay_spectrum_variance = avg_spectra["variance"]
+    bl_length_bin_edges = avg_spectra["bl_bin_edges"]
+    delay_axis = avg_spectra["delay_array"]
+
+    data_path = "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    model_path = "/safepool/rbyrne/hera_data/interpolated_models/zen.2459861.45004.sum.abs_calibrated.red_avg_model.uvfits"
+    data = pyuvdata.UVData()
+    data.read(data_path)
+    model = pyuvdata.UVData()
+    model.read(model_path)
+
+    data.inflate_by_redundancy(use_grid_alg=True)
+    model.inflate_by_redundancy(use_grid_alg=True)
+
+    # Model does not include all baselines
+    model_baselines = list(set(list(zip(model.ant_1_array, model.ant_2_array))))
+    data_baselines = list(set(list(zip(data.ant_1_array, data.ant_2_array))))
+    use_baselines = [
+        baseline
+        for baseline in model_baselines
+        if (baseline in data_baselines) or (baseline[::-1] in data_baselines)
+    ]
+    use_polarizations = -5  # Use XX only
+    data.select(bls=use_baselines, polarizations=use_polarizations)
+    model.select(bls=use_baselines, polarizations=use_polarizations)
+
+    # Align phasing
+    data.phase_to_time(np.mean(data.time_array))
+    model.phase_to_time(np.mean(data.time_array))
+
+    data.compress_by_redundancy()
+    model.compress_by_redundancy()
+
+    # Run DWAbscal
+    dwabscal_params = calibration_wrappers.dw_absolute_calibration(
+        data,
+        model,
+        delay_spectrum_variance,
+        bl_length_bin_edges,
+        delay_axis,
+        # initial_abscal_params=abscal_params,
+        log_file_path=f"{output_path}/dwabscal_log.txt",
+        verbose=True,
+        xtol=1e-7,
+        maxiter=50,
+    )
+    with open(f"{output_path}/dwabscal_params.npy", "wb") as f:
+        np.save(f, dwabscal_params)
+
+    data = pyuvdata.UVData()
+    data.read(data_path)
+    data.select(polarizations=use_polarizations)
+    data.phase_to_time(np.mean(data.time_array))
     dwabscal_data = calibration_wrappers.apply_abscal(
         data, dwabscal_params, data.polarization_array, inplace=False
     )
     dwabscal_data.write_uvfits(f"{output_path}/dwabscal_data.uvfits")
 
 
+def run_dwabscal_diagonal_weighting_Jul26():
+
+    output_path = "/safepool/rbyrne/hera_abscal_Jul2024"
+
+    avg_spectra = np.load(
+        "/safepool/rbyrne/hera_abscal_Jun2024/mean_variance_abscal_nbins200_xx.npz"
+    )
+    delay_spectrum_variance = avg_spectra["variance"]
+    bl_length_bin_edges = avg_spectra["bl_bin_edges"]
+    delay_axis = avg_spectra["delay_array"]
+
+    data_path = "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    model_path = "/safepool/rbyrne/hera_data/interpolated_models/zen.2459861.45004.sum.abs_calibrated.red_avg_model.uvfits"
+    data = pyuvdata.UVData()
+    data.read(data_path)
+    model = pyuvdata.UVData()
+    model.read(model_path)
+
+    data.inflate_by_redundancy(use_grid_alg=True)
+    model.inflate_by_redundancy(use_grid_alg=True)
+
+    # Model does not include all baselines
+    model_baselines = list(set(list(zip(model.ant_1_array, model.ant_2_array))))
+    data_baselines = list(set(list(zip(data.ant_1_array, data.ant_2_array))))
+    use_baselines = [
+        baseline
+        for baseline in model_baselines
+        if (baseline in data_baselines) or (baseline[::-1] in data_baselines)
+    ]
+    use_polarizations = -5  # Use XX only
+    data.select(bls=use_baselines, polarizations=use_polarizations)
+    model.select(bls=use_baselines, polarizations=use_polarizations)
+
+    # Align phasing
+    data.phase_to_time(np.mean(data.time_array))
+    model.phase_to_time(np.mean(data.time_array))
+
+    data.compress_by_redundancy()
+    model.compress_by_redundancy()
+
+    # Run DWAbscal
+    dwabscal_params = calibration_wrappers.dw_absolute_calibration(
+        data,
+        model,
+        np.ones_list(delay_spectrum_variance),
+        bl_length_bin_edges,
+        delay_axis,
+        # initial_abscal_params=abscal_params,
+        log_file_path=f"{output_path}/dwabscal_diagonal_log.txt",
+        verbose=True,
+        xtol=1e-7,
+        maxiter=50,
+    )
+    with open(f"{output_path}/dwabscal_diagonal_params.npy", "wb") as f:
+        np.save(f, dwabscal_params)
+
+    data = pyuvdata.UVData()
+    data.read(data_path)
+    data.select(polarizations=use_polarizations)
+    data.phase_to_time(np.mean(data.time_array))
+    dwabscal_data = calibration_wrappers.apply_abscal(
+        data, dwabscal_params, data.polarization_array, inplace=False
+    )
+    dwabscal_data.write_uvfits(f"{output_path}/dwabscal_diagonal_data.uvfits")
+
+
 if __name__ == "__main__":
-    compare_dwabscal_Jul24()
+    run_dwabscal_diagonal_weighting_Jul26()
