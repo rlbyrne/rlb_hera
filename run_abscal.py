@@ -907,5 +907,5 @@ def run_dwabscal_Aug8():
 
 
 if __name__ == "__main__":
-    run_abscal_Aug8()
-    run_dwabscal_Aug8
+    # run_abscal_Aug8()
+    run_dwabscal_Aug8()

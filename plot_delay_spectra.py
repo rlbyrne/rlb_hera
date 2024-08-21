@@ -11,14 +11,14 @@ def calculate_delay_spectra(uvdata, bl_bin_edges, use_polarization=-5):
     use_data = np.copy(uvdata.data_array)
     use_data[np.where(uvdata.flag_array)] = 0  # Zero out flagged data
     use_data = use_data[
-        :, :, :, np.where(uvdata.polarization_array == use_polarization)[0]
+        :, :, np.where(uvdata.polarization_array == use_polarization)[0]
     ]
 
     # FFT across frequency
     delay_array = np.fft.fftfreq(uvdata.Nfreqs, d=uvdata.channel_width)
     delay_array = np.fft.fftshift(delay_array)
-    fft_abs = np.abs(np.fft.fftshift(np.fft.fft(use_data, axis=2), axes=2))
-    fft_abs *= uvdata.channel_width
+    fft_abs = np.abs(np.fft.fftshift(np.fft.fft(use_data, axis=1), axes=1))
+    fft_abs *= np.mean(uvdata.channel_width)
 
     # Average in baseline length bins
     bl_lengths = np.sqrt(np.sum(uvdata.uvw_array**2.0, axis=1))
@@ -31,9 +31,7 @@ def calculate_delay_spectra(uvdata, bl_bin_edges, use_polarization=-5):
             & (bl_lengths <= bl_bin_edges[bin_ind + 1])
         )[0]
         if len(bl_inds) > 0:
-            binned_variance[bin_ind, :] = np.mean(
-                fft_abs[bl_inds, 0, :, 0] ** 2.0, axis=0
-            )
+            binned_variance[bin_ind, :] = np.mean(fft_abs[bl_inds, :, 0] ** 2.0, axis=0)
 
     return binned_variance
 
@@ -53,7 +51,7 @@ def plot_visibilities(
 ):
 
     bl_lengths = np.sqrt(np.sum(uvdata.uvw_array**2.0, axis=1))
-    delay_array = np.fft.fftfreq(uvdata.Nfreqs, d=uvdata.channel_width)
+    delay_array = np.fft.fftfreq(uvdata.Nfreqs, d=np.mean(uvdata.channel_width))
     if xmin is None:
         xmin = np.min(bl_lengths)
     if xmax is None:
@@ -138,7 +136,7 @@ def plot_difference(
 ):
 
     bl_lengths = np.sqrt(np.sum(uvdata1.uvw_array**2.0, axis=1))
-    delay_array = np.fft.fftfreq(uvdata1.Nfreqs, d=uvdata1.channel_width)
+    delay_array = np.fft.fftfreq(uvdata1.Nfreqs, d=np.mean(uvdata1.channel_width))
     if xmin is None:
         xmin = np.min(bl_lengths)
     if xmax is None:
@@ -387,21 +385,20 @@ def calculate_avg_model_error(
                 "phase_center_app_ra",
                 "phase_center_app_dec",
                 "phase_center_frame_pa",
-                "telescope_location",
                 "vis_units",
-                "antenna_names",
-                "antenna_positions",
-                "instrument",
-                "x_orientation",
-                "antenna_numbers",
                 "lst_array",
                 "time_array",
+                "rdate",
+                "dut1",
+                "telescope",
+                "phase_center_id_array",
+                "gst0",
             ],
         )
         diff.flag_array = data.flag_array
         bl_lengths = np.sqrt(np.sum(diff.uvw_array**2.0, axis=1))
-        use_data = np.copy(diff.data_array[:, 0, :, 0])
-        use_data[np.where(diff.flag_array[:, 0, :, 0])] = 0  # Zero out flagged data
+        use_data = np.copy(diff.data_array[:, :, 0])
+        use_data[np.where(diff.flag_array[:, :, 0])] = 0  # Zero out flagged data
         baseline_all_flagged = np.min(
             diff.flag_array, axis=(1, 2, 3)
         )  # Note what baselines are fully flagged
