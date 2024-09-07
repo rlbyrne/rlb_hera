@@ -906,6 +906,59 @@ def run_dwabscal_Aug8():
     dwabscal_data.write_uvfits(f"{output_path}/dwabscal_data.uvfits")
 
 
+def run_sky_cal_Sept6():
+
+    data_path = "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    model_path = "/safepool/rbyrne/hera_data/simulated_model_vis/zen.2459861.45004.fftvis_sim.uvfits"
+
+    data = pyuvdata.UVData()
+    data.read(data_path)
+    data.inflate_by_redundancy(use_grid_alg=True)
+    model = pyuvdata.UVData()
+    model.read(model_path)
+    model.inflate_by_redundancy(use_grid_alg=True)
+
+    data.phase_to_time(np.mean(data.time_array))
+    model.phase_to_time(np.mean(data.time_array))
+    data.conjugate_bls()
+    model.conjugate_bls()
+    data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
+    model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
+    use_baselines = [baseline for baseline in data_baselines if baseline in model_baselines]
+    use_pols = np.intersect1d(data.polarization_array, model.polarization_array)
+    data.select(bls=use_baselines, polarizations=use_pols)
+    model.select(bls=use_baselines, polarizations=use_pols)
+    data.reorder_blts()
+    model.reorder_blts()
+    data.reorder_pols(order="AIPS")
+    model.reorder_pols(order="AIPS")
+    data.reorder_freqs(channel_order="freq")
+    model.reorder_freqs(channel_order="freq")
+
+    caldata_obj = caldata.CalData()
+    caldata_obj.load_data(
+        data,
+        model,
+    )
+    caldata_obj.calibration_per_pol(
+        xtol=1e-5,
+        maxiter=100,
+        get_crosspol_phase=False,
+        parallel=True,
+        max_processes=10,
+        verbose=True,
+    )
+    uvcal = caldata_obj.convert_to_uvcal()
+    uvcal.write_calfits(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/zen.2459861.45004_skycal.calfits",
+        clobber=True,
+    )
+    pyuvdata.utils.uvcalibrate(data, uvcal, inplace=True, time_check=False)
+    data.write_uvfits(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/zen.2459861.45004_skycal.uvfits",
+    )
+
+
 if __name__ == "__main__":
     # run_abscal_Aug8()
-    run_dwabscal_Aug8()
+    run_sky_cal_Sept6()
