@@ -924,7 +924,9 @@ def run_sky_cal_Sept6():
     model.conjugate_bls()
     data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
     model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
-    use_baselines = [baseline for baseline in data_baselines if baseline in model_baselines]
+    use_baselines = [
+        baseline for baseline in data_baselines if baseline in model_baselines
+    ]
     use_pols = np.intersect1d(data.polarization_array, model.polarization_array)
     data.select(bls=use_baselines, polarizations=use_pols)
     model.select(bls=use_baselines, polarizations=use_pols)
@@ -959,6 +961,74 @@ def run_sky_cal_Sept6():
     )
 
 
+def run_abscal_Sept9():
+
+    data_path = "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    model_path = "/safepool/rbyrne/hera_data/interpolated_models/zen.2459861.45004.sum.abs_calibrated.red_avg_model.uvfits"
+
+    data = pyuvdata.UVData()
+    data.read(data_path)
+
+    model = pyuvdata.UVData()
+    model.read(model_path)
+
+    data.phase_to_time(np.mean(data.time_array))
+    model.phase_to_time(np.mean(data.time_array))
+    data.inflate_by_redundancy(use_grid_alg=True)
+    model.inflate_by_redundancy(use_grid_alg=True)
+
+    data.conjugate_bls()
+    model.conjugate_bls()
+
+    data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
+    model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
+    use_baselines = [
+        baseline for baseline in data_baselines if baseline in model_baselines
+    ]
+    use_pols = np.intersect1d(data.polarization_array, model.polarization_array)
+
+    data.select(bls=use_baselines, polarizations=use_pols)
+    model.select(bls=use_baselines, polarizations=use_pols)
+
+    data.reorder_blts()
+    model.reorder_blts()
+    data.reorder_pols(order="AIPS")
+    model.reorder_pols(order="AIPS")
+    data.reorder_freqs(channel_order="freq")
+    model.reorder_freqs(channel_order="freq")
+
+    caldata_obj = caldata.CalData()
+    caldata_obj.load_data(
+        data,
+        model,
+    )
+
+    # Run abscal
+    abscal_params = calibration_wrappers.absolute_calibration(
+        data,
+        model,
+        log_file_path=f"/safepool/rbyrne/hera_cal_testing_Sept2024/abscal_log.txt",
+        verbose=True,
+        xtol=1e-7,
+        maxiter=100,
+    )
+    with open(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/abscal_params.npy", "wb"
+    ) as f:
+        np.save(f, abscal_params)
+
+    data = pyuvdata.UVData()
+    data.read(data_path)
+    data.select(polarizations=use_pols)
+    data.phase_to_time(np.mean(data.time_array))
+    abscal_data = calibration_wrappers.apply_abscal(
+        data, abscal_params, data.polarization_array, inplace=False
+    )
+    abscal_data.write_uvfits(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/zen.2459861.45004_abscal.uvfits"
+    )
+
+
 if __name__ == "__main__":
     # run_abscal_Aug8()
-    run_sky_cal_Sept6()
+    run_abscal_Sept9()
