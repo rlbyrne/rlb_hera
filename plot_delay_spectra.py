@@ -326,7 +326,6 @@ def calculate_avg_model_error(
     nbins=200,
 ):
 
-    model_filepath = "/safepool/rbyrne/hera_data/interpolated_models"
     model_filenames = os.listdir(model_filepath)
     datafile_names = [name.removesuffix(model_suffix) for name in model_filenames]
 
@@ -336,11 +335,11 @@ def calculate_avg_model_error(
     calibrated_data_filenames = [
         f"{datafile_name}{calibrated_data_suffix}" for datafile_name in datafile_names
     ]
+    print(calibrated_data_filenames)
 
     for file_ind in range(len(datafile_names)):
         print(f"Processing file {file_ind+1} of {len(datafile_names)}.")
 
-        # Plot model
         model = pyuvdata.UVData()
         model.read(f"{model_filepath}/{model_filenames[file_ind]}")
         model.inflate_by_redundancy(use_grid_alg=True)

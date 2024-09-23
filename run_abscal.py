@@ -2,6 +2,7 @@ import numpy as np
 import pyuvdata
 from newcal import calibration_wrappers, calibration_optimization, caldata
 import os
+import plot_delay_spectra
 
 
 def run_abscal():
@@ -972,8 +973,25 @@ def run_abscal_Sept9():
     model = pyuvdata.UVData()
     model.read(model_path)
 
+    data.select(ant_str="cross")
+    model.select(ant_str="cross")
+
+    use_time = np.max(data.time_array)
+    data.select(times=use_time)
+    model_times = list(set(model.time_array))
+    model.select(
+        times=model_times[
+            np.where(
+                np.abs(model_times - use_time) == np.min(np.abs(model_times - use_time))
+            )[0][0]
+        ]
+    )
+
+    data.data_array[np.where(data.flag_array)] = np.nan
+
     data.phase_to_time(np.mean(data.time_array))
     model.phase_to_time(np.mean(data.time_array))
+
     data.inflate_by_redundancy(use_grid_alg=True)
     model.inflate_by_redundancy(use_grid_alg=True)
 
@@ -997,14 +1015,24 @@ def run_abscal_Sept9():
     data.reorder_freqs(channel_order="freq")
     model.reorder_freqs(channel_order="freq")
 
+    print(np.nanmean(np.abs(data.data_array)))
+    print(np.nanmean(np.abs(data.data_array - model.data_array)))
+
     caldata_obj = caldata.CalData()
     caldata_obj.load_data(
         data,
         model,
     )
 
+    data_flagged = np.copy(caldata_obj.data_visibilities)
+    data_flagged[np.where(caldata_obj.visibility_weights == 0.0)] = np.nan
+    print(np.nanmean(np.abs(data_flagged)))
+    print(
+        f"Flagged diff, post loading: {np.nanmean(np.abs(data_flagged - caldata_obj.model_visibilities))}"
+    )
+
     # Run abscal
-    abscal_params = calibration_wrappers.absolute_calibration(
+    abscal_params = calibration_wrappers.abscal_wrapper(
         data,
         model,
         log_file_path=f"/safepool/rbyrne/hera_cal_testing_Sept2024/abscal_log.txt",
@@ -1029,6 +1057,280 @@ def run_abscal_Sept9():
     )
 
 
+def run_abscal_Sept23():
+
+    data = pyuvdata.UVData()
+    data.read(
+        "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    )
+    model = pyuvdata.UVData()
+    model.read(
+        "/safepool/rbyrne/hera_data/simulated_model_vis/zen.2459861.45004.fftvis_sim.uvfits"
+    )
+
+    data.select(ant_str="cross")
+    model.select(ant_str="cross")
+
+    # Reduce frequencies to range where model is accurate and flagging is minimal
+    min_freq_hz = 108e6
+    max_freq_hz = 200e6
+    data.select(
+        frequencies=[
+            freq
+            for freq in data.freq_array
+            if (freq > min_freq_hz) and (freq < max_freq_hz)
+        ]
+    )
+    model.select(
+        frequencies=[
+            freq
+            for freq in model.freq_array
+            if (freq > min_freq_hz) and (freq < max_freq_hz)
+        ]
+    )
+
+    use_time = np.max(data.time_array)
+    data.select(times=use_time)
+    model_times = list(set(model.time_array))
+    model.select(
+        times=model_times[
+            np.where(
+                np.abs(model_times - use_time) == np.min(np.abs(model_times - use_time))
+            )[0][0]
+        ]
+    )
+
+    model.set_uvws_from_antenna_positions(update_vis=False)
+
+    data.phase_to_time(np.mean(data.time_array))
+    model.phase_to_time(np.mean(data.time_array))
+
+    data.inflate_by_redundancy(use_grid_alg=True)
+    model.inflate_by_redundancy(use_grid_alg=True)
+
+    data.conjugate_bls()
+    model.conjugate_bls()
+
+    data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
+    model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
+    use_baselines = [
+        baseline for baseline in data_baselines if baseline in model_baselines
+    ]
+    use_pols = np.intersect1d(data.polarization_array, model.polarization_array)
+    data.select(bls=use_baselines, polarizations=use_pols)
+    model.select(bls=use_baselines, polarizations=use_pols)
+
+    data.reorder_blts()
+    model.reorder_blts()
+    data.reorder_pols(order="AIPS")
+    model.reorder_pols(order="AIPS")
+    data.reorder_freqs(channel_order="freq")
+    model.reorder_freqs(channel_order="freq")
+
+    # Run abscal
+    abscal_params = calibration_wrappers.abscal_wrapper(
+        data,
+        model,
+        log_file_path=f"/safepool/rbyrne/hera_cal_testing_Sept2024/abscal_log_Sept23.txt",
+        verbose=True,
+        xtol=1e-7,
+        maxiter=100,
+    )
+    with open(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/abscal_params_Sept23.npy", "wb"
+    ) as f:
+        np.save(f, abscal_params)
+
+    data = pyuvdata.UVData()
+    data.read(
+        "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    )
+    data.select(
+        frequencies=[
+            freq
+            for freq in data.freq_array
+            if (freq > min_freq_hz) and (freq < max_freq_hz)
+        ]
+    )
+    data.select(polarizations=use_pols)
+    data.phase_to_time(np.mean(data.time_array))
+    abscal_data = calibration_wrappers.apply_abscal(
+        data, abscal_params, data.polarization_array, inplace=False
+    )
+    abscal_data.write_uvfits(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/zen.2459861.45004_abscal_Sept23.uvfits"
+    )
+
+
+def run_dwabscal_Sept23():
+
+    data = pyuvdata.UVData()
+    data.read(
+        "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    )
+    model = pyuvdata.UVData()
+    model.read(
+        "/safepool/rbyrne/hera_data/simulated_model_vis/zen.2459861.45004.fftvis_sim.uvfits"
+    )
+
+    data.select(ant_str="cross")
+    model.select(ant_str="cross")
+
+    # Reduce frequencies to range where model is accurate and flagging is minimal
+    min_freq_hz = 108e6
+    max_freq_hz = 200e6
+    data.select(
+        frequencies=[
+            freq
+            for freq in data.freq_array
+            if (freq > min_freq_hz) and (freq < max_freq_hz)
+        ]
+    )
+    model.select(
+        frequencies=[
+            freq
+            for freq in model.freq_array
+            if (freq > min_freq_hz) and (freq < max_freq_hz)
+        ]
+    )
+
+    use_time = np.max(data.time_array)
+    data.select(times=use_time)
+    model_times = list(set(model.time_array))
+    model.select(
+        times=model_times[
+            np.where(
+                np.abs(model_times - use_time) == np.min(np.abs(model_times - use_time))
+            )[0][0]
+        ]
+    )
+
+    model.set_uvws_from_antenna_positions(update_vis=False)
+
+    data.phase_to_time(np.mean(data.time_array))
+    model.phase_to_time(np.mean(data.time_array))
+
+    data.inflate_by_redundancy(use_grid_alg=True)
+    model.inflate_by_redundancy(use_grid_alg=True)
+
+    data.conjugate_bls()
+    model.conjugate_bls()
+
+    data_baselines = list(set(zip(data.ant_1_array, data.ant_2_array)))
+    model_baselines = list(set(zip(model.ant_1_array, model.ant_2_array)))
+    use_baselines = [
+        baseline for baseline in data_baselines if baseline in model_baselines
+    ]
+    use_pols = np.intersect1d(data.polarization_array, model.polarization_array)
+    data.select(bls=use_baselines, polarizations=use_pols)
+    model.select(bls=use_baselines, polarizations=use_pols)
+
+    data.reorder_blts()
+    model.reorder_blts()
+    data.reorder_pols(order="AIPS")
+    model.reorder_pols(order="AIPS")
+    data.reorder_freqs(channel_order="freq")
+    model.reorder_freqs(channel_order="freq")
+
+    # Calculate delay weighting
+    nbins = 200
+    data.filename = [""]
+    model.filename = [""]
+    diff = data.sum_vis(
+        model,
+        difference=True,
+        inplace=False,
+        override_params=[
+            "timesys",
+            "filename",
+            "nsample_array",
+            "flag_array",
+            "earth_omega",
+            "rdate",
+            "uvw_array",
+            "phase_center_catalog",
+            "telescope",
+            "phase_center_id_array",
+            "gst0",
+            "dut1",
+        ],
+    )
+    diff.flag_array = data.flag_array
+    bl_lengths = np.sqrt(np.sum(diff.uvw_array**2.0, axis=1))
+    use_data = np.copy(diff.data_array[:, :, 0])
+    use_data[np.where(diff.flag_array[:, :, 0])] = 0  # Zero out flagged data
+    baseline_all_flagged = np.min(
+        diff.flag_array, axis=(1, 2)
+    )  # Note what baselines are fully flagged
+    channel_width = diff.channel_width
+    frequencies = diff.freq_array.flatten()
+    delay_array = np.fft.fftshift(np.fft.fftfreq(diff.Nfreqs, d=channel_width))
+    bl_bin_edges = np.linspace(0, np.max(bl_lengths), num=nbins + 1)
+    binned_variance = np.full([nbins, len(frequencies)], 0.0, dtype="float")
+    nsamples = np.full([nbins, len(frequencies)], 0.0, dtype="float")
+    # FFT across frequency
+    fft_abs = np.abs(np.fft.fftshift(np.fft.fft(use_data, axis=1), axes=1))
+    fft_abs *= channel_width
+    for bin_ind in range(nbins):
+        bl_inds = np.where(
+            (bl_lengths > bl_bin_edges[bin_ind])
+            & (bl_lengths <= bl_bin_edges[bin_ind + 1])
+            & (~baseline_all_flagged)
+        )[0]
+        if len(bl_inds) > 0:
+            binned_variance[bin_ind, :] += np.sum(fft_abs[bl_inds, :] ** 2.0, axis=0)
+            nsamples[bin_ind, :] += len(bl_inds)
+
+    mean_variance = {}
+    mean_variance["variance"] = binned_variance / nsamples
+    mean_variance["nsamples"] = nsamples
+    mean_variance["delay_array"] = delay_array
+    mean_variance["bl_bin_edges"] = bl_bin_edges
+    np.savez(
+        "/safepool/rbyrne/hera_cal_testing_Sept2024/zen.2459861.45004_mean_variance.npz",
+        **mean_variance,
+    )
+    delay_spectrum_variance = mean_variance["variance"]
+    bl_length_bin_edges = mean_variance["bl_bin_edges"]
+    delay_axis = mean_variance["delay_array"]
+
+    # Run dwabscal
+    abscal_params = calibration_wrappers.dw_absolute_calibration(
+        data,
+        model,
+        delay_spectrum_variance,
+        bl_length_bin_edges,
+        delay_axis,
+        log_file_path=f"/safepool/rbyrne/hera_cal_testing_Sept2024/dwabscal_log_Sept23.txt",
+        verbose=True,
+        xtol=1e-7,
+        maxiter=100,
+    )
+    with open(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/dwabscal_params_Sept23.npy", "wb"
+    ) as f:
+        np.save(f, abscal_params)
+
+    data = pyuvdata.UVData()
+    data.read(
+        "/safepool/rbyrne/hera_data/H6C-data/2459861/zen.2459861.45004.sum.abs_calibrated.red_avg.uvh5"
+    )
+    data.select(
+        frequencies=[
+            freq
+            for freq in data.freq_array
+            if (freq > min_freq_hz) and (freq < max_freq_hz)
+        ]
+    )
+    data.select(polarizations=use_pols)
+    data.phase_to_time(np.mean(data.time_array))
+    abscal_data = calibration_wrappers.apply_abscal(
+        data, abscal_params, data.polarization_array, inplace=False
+    )
+    abscal_data.write_uvfits(
+        f"/safepool/rbyrne/hera_cal_testing_Sept2024/zen.2459861.45004_dwabscal_Sept23.uvfits"
+    )
+
+
 if __name__ == "__main__":
-    # run_abscal_Aug8()
-    run_abscal_Sept9()
+    run_dwabscal_Sept23()
