@@ -4,15 +4,54 @@ import sys
 import pyuvdata
 import matplotlib
 import matplotlib.pyplot as plt
+import sklearn.gaussian_process
 
 
-def calculate_delay_spectra(uvdata, bl_bin_edges, use_polarization=-5):
+def calculate_delay_spectra(uvdata, bl_bin_edges, use_polarization=-5, use_gpr=True):
 
     use_data = np.copy(uvdata.data_array)
-    use_data[np.where(uvdata.flag_array)] = 0  # Zero out flagged data
     use_data = use_data[
-        :, :, np.where(uvdata.polarization_array == use_polarization)[0]
+        :, :, np.where(uvdata.polarization_array == use_polarization)[0][0]
     ]
+    use_flags = np.copy(uvdata.flag_array)
+    use_flags = use_flags[
+        :, :, np.where(uvdata.polarization_array == use_polarization)[0][0]
+    ]
+    baseline_all_flagged = np.min(
+        use_flags, axis=(1,)
+    )  # Note what baselines are fully flagged
+    if use_gpr:
+        for bl_ind in range(uvdata.Nblts):
+            if baseline_all_flagged[bl_ind]:
+                use_data[bl_ind, :] = np.nan + 1j * np.nan
+            else:
+                bl_data = use_data[bl_ind, :]
+                bl_flags = use_flags[bl_ind, :]
+                if np.max(bl_flags):  # Fill in flagged data
+                    gp_real = sklearn.gaussian_process.GaussianProcessRegressor(
+                        normalize_y=True
+                    )
+                    gp_real.fit(
+                        uvdata.freq_array[np.where(~bl_flags)].reshape(-1, 1),
+                        np.real(bl_data[np.where(~bl_flags)]),
+                    )
+                    gpr_values_real = gp_real.predict(
+                        uvdata.freq_array[np.where(bl_flags)].reshape(-1, 1)
+                    )
+                    gp_imag = sklearn.gaussian_process.GaussianProcessRegressor(
+                        normalize_y=True
+                    )
+                    gp_imag.fit(
+                        uvdata.freq_array[np.where(~bl_flags)].reshape(-1, 1),
+                        np.imag(bl_data[np.where(~bl_flags)]),
+                    )
+                    gpr_values_imag = gp_imag.predict(
+                        uvdata.freq_array[np.where(bl_flags)].reshape(-1, 1)
+                    )
+                    bl_data[np.where(bl_flags)] = gpr_values_real + 1j * gpr_values_imag
+                use_data[bl_ind, :] = bl_data
+    else:  # Zero out flagged data
+        use_data[np.where(use_flags)] = 0  # Zero out flagged data
 
     # FFT across frequency
     delay_array = np.fft.fftfreq(uvdata.Nfreqs, d=uvdata.channel_width)
@@ -25,15 +64,18 @@ def calculate_delay_spectra(uvdata, bl_bin_edges, use_polarization=-5):
     binned_variance = np.full(
         [len(bl_bin_edges) - 1, uvdata.Nfreqs], np.nan, dtype="float"
     )
+    nsamples = np.full([len(bl_bin_edges) - 1, uvdata.Nfreqs], 0.0, dtype="float")
     for bin_ind in range(len(bl_bin_edges) - 1):
         bl_inds = np.where(
             (bl_lengths > bl_bin_edges[bin_ind])
             & (bl_lengths <= bl_bin_edges[bin_ind + 1])
+            & (~baseline_all_flagged)
         )[0]
         if len(bl_inds) > 0:
-            binned_variance[bin_ind, :] = np.mean(fft_abs[bl_inds, :, 0] ** 2.0, axis=0)
+            binned_variance[bin_ind, :] = np.nansum(fft_abs[bl_inds, :] ** 2.0, axis=0)
+            nsamples[bin_ind, :] = len(bl_inds)
 
-    return binned_variance
+    return binned_variance / nsamples
 
 
 def plot_visibilities(
@@ -48,6 +90,7 @@ def plot_visibilities(
     nbins=50,
     vmin=1e16,
     vmax=1e22,
+    use_gpr=True,
 ):
 
     bl_lengths = np.sqrt(np.sum(uvdata.uvw_array**2.0, axis=1))
@@ -58,7 +101,10 @@ def plot_visibilities(
         xmax = np.max(bl_lengths)
     bl_bin_edges = np.linspace(xmin, xmax, num=nbins + 1)
     binned_variance = calculate_delay_spectra(
-        uvdata, bl_bin_edges, use_polarization=use_polarization
+        uvdata,
+        bl_bin_edges,
+        use_polarization=use_polarization,
+        use_gpr=use_gpr,
     )
 
     # Plot

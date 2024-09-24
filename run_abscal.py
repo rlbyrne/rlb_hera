@@ -1232,6 +1232,10 @@ def run_dwabscal_Sept23():
     data.reorder_freqs(channel_order="freq")
     model.reorder_freqs(channel_order="freq")
 
+    model.uvw_array = data.uvw_array
+    data.compress_by_redundancy(use_grid_alg=True)
+    model.compress_by_redundancy(use_grid_alg=True)
+
     # Calculate delay weighting
     nbins = 200
     data.filename = [""]
